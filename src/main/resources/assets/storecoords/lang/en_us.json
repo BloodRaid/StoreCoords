@@ -1,0 +1,6 @@
+{
+  "key.categories.storecoords": "StoreCoords",
+
+  "key.storecoords.store_block": "Store Block",
+  "key.storecoords.remove_stored_block": "Remove Stored Block"
+}
