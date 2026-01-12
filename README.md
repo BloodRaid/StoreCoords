@@ -7,7 +7,7 @@ Albus_P_W_B_Dumb
 Die *StoreCoords* Mod ermöglicht das Speichern und Löschen von Block-Koordinaten im YML Format.
 
 **Download:**  
-[StoreCoords Mod Download](https://github.com/Albus-P-W-B-Dumb/StoreCoords/releases/download/StoreCoords/StoreCoords-1.0.1.jar)
+[StoreCoords Mod Download](https://github.com/Albus-P-W-B-Dumb/StoreCoords/releases/download/StoreCoords-1.0.1/StoreCoords-1.0.1.jar)
 
 **Kompatibilität**  
 Die Releases wurde mit Forge 40.3.12 und Minecraft 1.18.2 getestet.   
