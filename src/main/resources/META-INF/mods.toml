@@ -27,7 +27,7 @@ displayURL="https://github.com/Albus-P-W-B-Dumb/StoreCoords" #optional
 # A file name (in the root of the mod JAR) containing a logo for display
 logoFile="logo.png" #optional
 # A text field displayed in the mod UI
-credits="Logo made by AI" #optional
+credits="Logo made with AI" #optional
 # A text field displayed in the mod UI
 authors="${mod_authors}" #optional
 # Display Test controls the display for your mod in the server connection screen

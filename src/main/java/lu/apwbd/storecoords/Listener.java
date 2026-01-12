@@ -31,8 +31,8 @@ public class Listener {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         LocalPlayer player = mc.player;
-
         Manager.updateSet(player);
+
         BlockHitResult result = (BlockHitResult) player.pick(5, 0.0F, false);
         BlockPos blockPos = result.getBlockPos();
         if (player.level.getBlockState(blockPos).isAir()) return;
@@ -43,7 +43,7 @@ public class Listener {
                 return;
             }
 
-            Manager.BLOCKS.add(result.getBlockPos());
+            Manager.BLOCKS.add(blockPos);
             Manager.updateYML(player);
             sendSuccessMessage(player, blockPos, new TextComponent("stored").withStyle(ChatFormatting.GREEN));
         }
@@ -54,7 +54,7 @@ public class Listener {
                 return;
             }
 
-            Manager.BLOCKS.remove(result.getBlockPos());
+            Manager.BLOCKS.remove(blockPos);
             Manager.updateYML(player);
             sendSuccessMessage(player, blockPos, new TextComponent("removed").withStyle(ChatFormatting.RED));
         }

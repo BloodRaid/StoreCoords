@@ -7,6 +7,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextComponent;
 
 import net.minecraftforge.fml.loading.FMLPaths;
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
@@ -19,12 +20,11 @@ import java.util.Map;
 import java.util.Set;
 
 public class Manager {
-    public static File FOLDER = new File(FMLPaths.GAMEDIR.get().toFile(), "moddata/" + StoreCoords.MOD_ID);
-    private static final File FILE = new File(FOLDER, "storedCoords.yml");
+    private static final File FILE = new File(new File(FMLPaths.CONFIGDIR.get().toFile(), StoreCoords.MOD_ID), "coords.yml");
     public static final Set<BlockPos> BLOCKS = new HashSet<>();
 
     public static void updateSet(LocalPlayer player) {
-        if (failLoadingFile(player)) return;
+        if (!loadFileSuccessfully(player)) return;
         Map<String, Object> data;
 
         try (FileInputStream inputStream = new FileInputStream(FILE)) {
@@ -34,12 +34,9 @@ public class Manager {
             return;
         }
 
-        if (data == null) {
-            sendFileError(player, "load");
-            return;
-        }
-
+        if (data == null) data = new HashMap<>();
         BLOCKS.clear();
+
         for (Object object : data.values()) {
             if (!(object instanceof Map<?, ?> coords)) continue;
             Object xObj = coords.get("x");
@@ -54,7 +51,7 @@ public class Manager {
     }
 
     public static void updateYML(LocalPlayer player) {
-        if (failLoadingFile(player)) return;
+        if (!loadFileSuccessfully(player)) return;
         Map<Integer, Object> data = new HashMap<>();
         int index = 1;
 
@@ -69,27 +66,33 @@ public class Manager {
         }
 
         try (FileWriter writer = new FileWriter(FILE)) {
-            new Yaml().dump(data, writer);
+            DumperOptions options = new DumperOptions();
+            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            new Yaml(options).dump(data, writer);
         } catch (IOException e) {
             sendFileError(player, "edit");
         }
     }
 
     private static void sendFileError(LocalPlayer player, String action) {
-        MutableComponent message = new TextComponent("Failed to %s '%s'.".formatted(action, FILE.getName())).withStyle(ChatFormatting.RED);
+        MutableComponent message = new TextComponent("Failed to %s ".formatted(action)).withStyle(ChatFormatting.RED);
+        message.append(new TextComponent(FILE.getName()).withStyle(ChatFormatting.DARK_RED));
+        message.append(new TextComponent(".").withStyle(ChatFormatting.RED));
         player.sendMessage(StoreCoords.getPrefix().append(message), player.getUUID());
     }
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    private static boolean failLoadingFile(LocalPlayer player) {
-        if (!FOLDER.exists()) FOLDER.mkdirs();
+    @SuppressWarnings({"ResultOfMethodCallIgnored", "BooleanMethodIsAlwaysInverted"})
+    private static boolean loadFileSuccessfully(LocalPlayer player) {
+        if (FILE.exists()) return true;
 
         try {
-            if (!FILE.exists()) FILE.createNewFile();
-            return false;
+            File parentFile = FILE.getParentFile();
+            if (parentFile != null && !parentFile.exists()) parentFile.mkdirs();
+            FILE.createNewFile();
+            return true;
         } catch (IOException e) {
             sendFileError(player, "load");
-            return true;
+            return false;
         }
     }
 }
