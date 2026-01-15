@@ -1,9 +1,9 @@
 package lu.apwbd.storecoords.client;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import lu.apwbd.storecoords.StoreCoords;
 import lu.apwbd.storecoords.client.render.BlockHighlighter;
 import lu.apwbd.storecoords.io.CoordsManager;
-import lu.apwbd.storecoords.StoreCoords;
 import lu.apwbd.storecoords.world.MultiBlockResolver;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -57,9 +57,8 @@ public final class KeyInputHandler {
 
         InputConstants.Key pressed = InputConstants.getKey(event.getKey(), event.getScanCode());
 
-        // Highlight Toggle
         if (HIGHLIGHT_TOGGLE_KEY.isActiveAndMatches(pressed)) {
-            BlockHighlighter.toggle(player);
+            BlockHighlighter.toggle(player, MANAGER);
             return;
         }
 
@@ -67,7 +66,7 @@ public final class KeyInputHandler {
         boolean removePressed = REMOVE_KEY.isActiveAndMatches(pressed);
         if (!storePressed && !removePressed) return;
 
-        if (!MANAGER.ensureLoaded(player)) {
+        if (!MANAGER.ensureLoaded()) {
             ChatMessages.fileError(player, "load", MANAGER.getFileName());
             return;
         }
@@ -81,11 +80,11 @@ public final class KeyInputHandler {
         Set<BlockPos> positions = MultiBlockResolver.resolve(player.level, target);
 
         if (storePressed) {
-            CoordsManager.BatchResult r = MANAGER.storeAll(player, positions);
-            handleBatch(player, target, positions.size(), r, true);
+            CoordsManager.BatchResult r = MANAGER.storeAll(positions);
+            handleStore(player, target, positions.size(), r);
         } else {
-            CoordsManager.BatchResult r = MANAGER.removeAll(player, positions);
-            handleBatch(player, target, positions.size(), r, false);
+            CoordsManager.BatchResult r = MANAGER.removeAll(positions);
+            handleRemove(player, target, positions.size(), r);
         }
     }
 
@@ -106,44 +105,39 @@ public final class KeyInputHandler {
         return pos;
     }
 
-    /**
-     * Handles the result of a batch operation for storing or removing coordinates.
-     * Produces appropriate player feedback based on the result status and updates
-     * the block highlighter if any changes were made.
-     *
-     * @param player       The local player instance that initiated the batch operation.
-     * @param anchor       The block position used as an anchor for the batch operation.
-     * @param resolvedCount The total number of resolved positions in the batch operation.
-     * @param r            The result of the batch operation, containing the status and count of changes.
-     * @param storing      A flag indicating whether the operation involves storing (true) or removing (false) coordinates.
-     */
-    private static void handleBatch(LocalPlayer player, BlockPos anchor, int resolvedCount, CoordsManager.BatchResult r, boolean storing) {
+
+    private static void handleStore(LocalPlayer player, BlockPos anchor, int resolvedCount, CoordsManager.BatchResult r) {
         if (r.status == CoordsManager.ActionResult.IO_ERROR) {
             ChatMessages.fileError(player, "edit", MANAGER.getFileName());
             return;
         }
-
-        if (storing) {
-            if (r.status == CoordsManager.ActionResult.ALREADY_EXISTS) {
-                ChatMessages.alreadyStored(player, anchor, resolvedCount);
-                return;
-            }
-            ChatMessages.stored(player, anchor, r.changedCount, resolvedCount);
-        } else {
-            if (r.status == CoordsManager.ActionResult.NOT_FOUND) {
-                ChatMessages.notStored(player, anchor, resolvedCount);
-                return;
-            }
-            ChatMessages.removed(player, anchor, r.changedCount, resolvedCount);
+        if (r.status == CoordsManager.ActionResult.ALREADY_EXISTS) {
+            ChatMessages.alreadyStored(player, anchor, resolvedCount);
+            return;
         }
 
-        if (r.changedCount > 0) {
-            BlockHighlighter.markDirty();
+        ChatMessages.stored(player, anchor, r.changedCount(), resolvedCount);
+
+        if (!r.changedPositions.isEmpty()) {
+            BlockHighlighter.addToCache(r.changedPositions);
         }
     }
 
+    private static void handleRemove(LocalPlayer player, BlockPos anchor, int resolvedCount, CoordsManager.BatchResult r) {
+        if (r.status == CoordsManager.ActionResult.IO_ERROR) {
+            ChatMessages.fileError(player, "edit", MANAGER.getFileName());
+            return;
+        }
+        if (r.status == CoordsManager.ActionResult.NOT_FOUND) {
+            ChatMessages.notStored(player, anchor, resolvedCount);
+            return;
+        }
 
-    public static CoordsManager getManager() {
-        return MANAGER;
+        ChatMessages.removed(player, anchor, r.changedCount(), resolvedCount);
+
+        if (!r.changedPositions.isEmpty()) {
+            BlockHighlighter.removeFromCache(r.changedPositions);
+        }
     }
+
 }

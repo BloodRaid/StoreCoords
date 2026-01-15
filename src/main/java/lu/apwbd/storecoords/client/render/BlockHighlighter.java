@@ -5,11 +5,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import lu.apwbd.storecoords.StoreCoords;
 import lu.apwbd.storecoords.client.ChatMessages;
-import lu.apwbd.storecoords.client.KeyInputHandler;
 import lu.apwbd.storecoords.client.config.ClientConfig;
 import lu.apwbd.storecoords.io.CoordsManager;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -20,22 +20,20 @@ import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Mod.EventBusSubscriber(modid = StoreCoords.MOD_ID, value = Dist.CLIENT)
 public final class BlockHighlighter {
 
     private static boolean enabled = false;
 
-    private static final double MAX_DISTANCE = 64.0;
+    private static final double MAX_DISTANCE = ClientConfig.RENDER_DISTANCE.get().doubleValue();
     private static final double MAX_DISTANCE_SQ = MAX_DISTANCE * MAX_DISTANCE;
 
     private static final boolean THROUGH_WALLS = false;
 
-    private static boolean dirty = true;
-    private static final List<BlockPos> cachedPositions = new ArrayList<>();
+    private static final Set<BlockPos> cachedSet = new HashSet<>();
+    private static final List<BlockPos> cachedList = new ArrayList<>();
 
     private BlockHighlighter() {}
 
@@ -46,15 +44,61 @@ public final class BlockHighlighter {
      *
      * @param player the local player for whom the highlight status is toggled
      */
-    public static void toggle(net.minecraft.client.player.LocalPlayer player) {
+    public static void toggle(LocalPlayer player, CoordsManager manager) {
         enabled = !enabled;
-        dirty = true;
         ChatMessages.highlightToggled(player, enabled);
+
+        if (!enabled) return;
+
+        if (!manager.ensureLoaded()) return;
+        rebuildFromSnapshot(manager.getBlocksSnapshot());
     }
 
-    /** Wenn sich gespeicherte Blöcke ändern -> Cache neu bauen */
-    public static void markDirty() {
-        dirty = true;
+    /**
+     * Rebuilds the cached collections for highlighted blocks from the provided snapshot.
+     * This method clears the existing cached data and updates the caches with the
+     * new block positions from the snapshot to ensure consistent rendering.
+     *
+     * @param snapshot the set of {@code BlockPos} instances representing the new
+     *                 block positions to update the cached data
+     */
+    private static void rebuildFromSnapshot(Set<BlockPos> snapshot) {
+        cachedSet.clear();
+        cachedList.clear();
+        cachedSet.addAll(snapshot);
+        cachedList.addAll(snapshot);
+    }
+
+    /**
+     * Adds a set of immutable block positions to the cache for highlighting purposes.
+     * This method updates both the cached set and the corresponding list, preventing
+     * duplicate entries while maintaining the order for rendering.
+     *
+     * @param added the set of {@code BlockPos} instances to be added to the cache;
+     *              must not be {@code null} or empty. Each block position is converted
+     *              to an immutable reference before caching.
+     */
+    public static void addToCache(Set<BlockPos> added) {
+        if (!enabled || added == null || added.isEmpty()) return;
+
+        for (BlockPos p : added) {
+            BlockPos im = p.immutable();
+            if (cachedSet.add(im)) {
+                cachedList.add(im);
+            }
+        }
+    }
+
+    /**
+     * Removes a set of block positions from the cached collections used for highlighting.
+     * This method updates both the cached set and the cached list by removing the specified
+     **/
+    public static void removeFromCache(Set<BlockPos> removed) {
+        if (!enabled || removed == null || removed.isEmpty()) return;
+
+        cachedSet.removeAll(removed);
+
+        cachedList.removeIf(removed::contains);
     }
 
     /**
@@ -68,21 +112,12 @@ public final class BlockHighlighter {
     @SubscribeEvent
     public static void onRenderStage(RenderLevelStageEvent event) {
         if (!enabled) return;
-
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return;
 
-        CoordsManager manager = KeyInputHandler.getManager();
-        if (!manager.ensureLoaded(mc.player)) return;
-
-        if (dirty) {
-            rebuildCache(manager);
-            dirty = false;
-        }
-
-        if (cachedPositions.isEmpty()) return;
+        if (cachedList.isEmpty()) return;
 
         PoseStack poseStack = event.getPoseStack();
         Camera camera = event.getCamera();
@@ -101,59 +136,17 @@ public final class BlockHighlighter {
 
         BlockPos playerPos = mc.player.blockPosition();
 
-        float[] c = getColor();
-        float alpha = ClientConfig.ALPHA.get().floatValue();
-
-
-        for (BlockPos pos : cachedPositions) {
+        for (BlockPos pos : cachedList) {
             if (pos.distSqr(playerPos) > MAX_DISTANCE_SQ) continue;
 
             AABB box = new AABB(pos).inflate(0.002D);
-
             LevelRenderer.renderLineBox(poseStack, consumer, box,
-                    c[0], c[1], c[2], alpha);
+                    1.0F, 0.85F, 0.0F, 0.8F);
         }
 
         poseStack.popPose();
-
         buffer.endBatch(RenderType.lines());
 
         if (THROUGH_WALLS) RenderSystem.enableDepthTest();
     }
-
-    /**
-     * Rebuilds the cached positions used for rendering by clearing the current cache
-     * and repopulating it with a snapshot of blocks provided by the specified manager.
-     *
-     * @param manager the {@code CoordsManager} instance that provides the current
-     *                snapshot of block positions to populate the cache
-     */
-    private static void rebuildCache(CoordsManager manager) {
-        cachedPositions.clear();
-        Set<BlockPos> snapshot = manager.getBlocksSnapshot();
-        cachedPositions.addAll(snapshot);
-    }
-
-    /**
-     * Determines the appropriate RGB color values based on the current color mode
-     * set in the client configuration. The selected mode corresponds to a specific
-     * preset of RGB values used for visual highlights.
-     *
-     * @return a float array containing three elements representing the RGB color values.
-     *         The values are in the range of 0.0 to 1.0, with the order of the elements
-     *         being red, green, and blue respectively.
-     */
-    private static float[] getColor() {
-        ClientConfig.ColorMode mode = ClientConfig.COLOR_MODE.get();
-
-        // Rückgabe: {r,g,b}
-        return switch (mode) {
-            case DEFAULT -> new float[]{1.0F, 0.85F, 0.0F};       // gelb/orange
-            case DEUTERANOPIA -> new float[]{0.0F, 0.55F, 1.0F};  // blau (sehr sicher)
-            case PROTANOPIA -> new float[]{0.0F, 0.75F, 1.0F};    // cyan-ish
-            case TRITANOPIA -> new float[]{1.0F, 0.4F, 0.9F};     // magenta/pink
-            case HIGH_CONTRAST -> new float[]{1.0F, 1.0F, 1.0F};  // weiß
-        };
-    }
-
 }

@@ -13,24 +13,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
 
-/**
- * CoordsManager manages a collection of BlockPos coordinates and provides
- * functionality for storing, removing, and retrieving these coordinates persistently
- * using a YAML configuration file. This class ensures thread-safe operations for
- * accessing and modifying the coordinate set.
- *
- * This class utilizes the following:
- * - A backing file (`coords.yml`) located in the mod's configuration directory for
- *   persistent storage.
- * - Block positions defined as immutable instances of `BlockPos`.
- * - YAML parsing and serialization for loading and saving data from/to the file.
- *
- * It provides methods for handling batch operations, ensuring file persistence, and
- * offering a snapshot of the current coordinate set.
- *
- * This class is immutable and not extendable, marked as `final`, and ensures internal
- * encapsulation of its state.
- */
 public final class CoordsManager {
 
     public enum ActionResult {
@@ -42,11 +24,15 @@ public final class CoordsManager {
 
     public static final class BatchResult {
         public final ActionResult status;
-        public final int changedCount;
+        public final Set<BlockPos> changedPositions;
 
-        public BatchResult(ActionResult status, int changedCount) {
+        public BatchResult(ActionResult status, Set<BlockPos> changedPositions) {
             this.status = status;
-            this.changedCount = changedCount;
+            this.changedPositions = changedPositions;
+        }
+
+        public int changedCount() {
+            return changedPositions.size();
         }
     }
 
@@ -74,12 +60,10 @@ public final class CoordsManager {
      * loaded, this method attempts to load it. The method returns the current status of
      * whether the data is successfully loaded.
      *
-     * @param player The local player instance, which can be used to provide player-specific
-     *               context if required during the loading process.
      * @return {@code true} if the configuration file is successfully loaded into memory,
      *         {@code false} otherwise.
      */
-    public boolean ensureLoaded(LocalPlayer player) {
+    public boolean ensureLoaded() {
         if (loaded) return true;
         loaded = load();
         return loaded;
@@ -102,30 +86,32 @@ public final class CoordsManager {
      * Ensures that only positions not already present are added to the set. If the positions are successfully
      * saved to persistent storage, they are retained; otherwise, the operation is rolled back.
      *
-     * @param player    The local player instance initiating the store operation.
      * @param positions A set of {@code BlockPos} instances representing the block positions to store.
      * @return A {@code BatchResult} containing the status of the store operation and the number of positions added:
      *         - {@code ActionResult.OK} if the positions were successfully added and saved.
      *         - {@code ActionResult.ALREADY_EXISTS} if all the given positions already exist.
      *         - {@code ActionResult.IO_ERROR} if the save operation failed.
      */
-    public BatchResult storeAll(LocalPlayer player, Set<BlockPos> positions) {
-        List<BlockPos> toAdd = new ArrayList<>();
+    public BatchResult storeAll(Set<BlockPos> positions) {
+        Set<BlockPos> added = new HashSet<>();
+
         for (BlockPos p : positions) {
             BlockPos im = p.immutable();
-            if (!blocks.contains(im)) toAdd.add(im);
+            if (blocks.add(im)) {
+                added.add(im);
+            }
         }
 
-        if (toAdd.isEmpty()) return new BatchResult(ActionResult.ALREADY_EXISTS, 0);
-
-        for (BlockPos p : toAdd) blocks.add(p);
+        if (added.isEmpty()) {
+            return new BatchResult(ActionResult.ALREADY_EXISTS, Collections.emptySet());
+        }
 
         if (!save()) {
-            for (BlockPos p : toAdd) blocks.remove(p);
-            return new BatchResult(ActionResult.IO_ERROR, 0);
+            blocks.removeAll(added);
+            return new BatchResult(ActionResult.IO_ERROR, Collections.emptySet());
         }
 
-        return new BatchResult(ActionResult.OK, toAdd.size());
+        return new BatchResult(ActionResult.OK, added);
     }
 
     /**
@@ -133,7 +119,6 @@ public final class CoordsManager {
      * If any positions in the provided set match the currently tracked blocks, they are removed.
      * The operation attempts to persist changes to storage and will revert on failure to save.
      *
-     * @param player    The local player initiating the removal operation.
      * @param positions A set of {@code BlockPos} objects representing the block positions to be removed.
      * @return A {@code BatchResult} object containing the result status of the operation
      *         and the count of successfully removed positions. Returns
@@ -141,24 +126,30 @@ public final class CoordsManager {
      *         {@code ActionResult.IO_ERROR} if a failure occurred during saving,
      *         or {@code ActionResult.OK} on successful removal.
      */
-    public BatchResult removeAll(LocalPlayer player, Set<BlockPos> positions) {
-        List<BlockPos> toRemove = new ArrayList<>();
+    public BatchResult removeAll(Set<BlockPos> positions) {
+        Set<BlockPos> removed = new HashSet<>();
+
         for (BlockPos p : positions) {
-            if (blocks.contains(p)) toRemove.add(p.immutable());
+            BlockPos im = p.immutable();
+            if (blocks.remove(im)) {
+                removed.add(im);
+            }
         }
 
-        if (toRemove.isEmpty()) return new BatchResult(ActionResult.NOT_FOUND, 0);
-
-        for (BlockPos p : toRemove) blocks.remove(p);
+        if (removed.isEmpty()) {
+            return new BatchResult(ActionResult.NOT_FOUND, Collections.emptySet());
+        }
 
         if (!save()) {
-            blocks.addAll(toRemove);
-            return new BatchResult(ActionResult.IO_ERROR, 0);
+            // rollback
+            blocks.addAll(removed);
+            return new BatchResult(ActionResult.IO_ERROR, Collections.emptySet());
         }
 
-        return new BatchResult(ActionResult.OK, toRemove.size());
+        return new BatchResult(ActionResult.OK, removed);
     }
 
+    // ---- YAML IO (Format bleibt: index -> {x,y,z}) ----
 
     /**
      * Loads data from a YAML file and populates the internal blocks set with coordinates
