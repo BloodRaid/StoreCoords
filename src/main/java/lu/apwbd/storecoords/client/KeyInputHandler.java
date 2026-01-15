@@ -116,7 +116,7 @@ public final class KeyInputHandler {
             return;
         }
 
-        ChatMessages.stored(player, anchor, r.changedCount(), resolvedCount);
+        ChatMessages.stored(player, anchor, resolvedCount);
 
         if (!r.changedPositions.isEmpty()) {
             BlockHighlighter.addToCache(r.changedPositions);
@@ -133,7 +133,7 @@ public final class KeyInputHandler {
             return;
         }
 
-        ChatMessages.removed(player, anchor, r.changedCount(), resolvedCount);
+        ChatMessages.removed(player, anchor, resolvedCount);
 
         if (!r.changedPositions.isEmpty()) {
             BlockHighlighter.removeFromCache(r.changedPositions);

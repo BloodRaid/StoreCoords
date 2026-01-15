@@ -35,10 +35,4 @@ public class StoreCoords {
         });
     }
 
-    public static MutableComponent getPrefix() {
-        MutableComponent message = new TextComponent("[").withStyle(ChatFormatting.DARK_AQUA);
-        message.append(new TextComponent("SC").withStyle(ChatFormatting.DARK_GREEN));
-        message.append(new TextComponent("] ").withStyle(ChatFormatting.DARK_AQUA));
-        return message;
-    }
 }
