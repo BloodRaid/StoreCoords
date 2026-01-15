@@ -10,7 +10,8 @@ Die *StoreCoords* Mod ermöglicht das Speichern und Löschen von Block-Koordinat
 [StoreCoords Mod Download](https://github.com/Albus-P-W-B-Dumb/StoreCoords/releases/download/StoreCoords-1.0.1/StoreCoords-1.0.1.jar)
 
 **Kompatibilität**  
-Die Releases wurde mit Forge 40.3.12 und Minecraft 1.18.2 getestet.   
+Der Release 1.0.1 wurde mit Forge 40.3.12 und Minecraft 1.18.2 getestet.   
+Der Release 1.0.2 wurde mit Forge 40.2.21 getestet.
 Eine Kompatibilität mit anderen Forge-Versionen ab 40.0.0 sowie mit Minecraft 1.18.1 ist möglich, kann jedoch nicht garantiert werden.
 
 **Bugs und Fragen**  
