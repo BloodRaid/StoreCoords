@@ -15,7 +15,6 @@ public final class ClientConfig {
     public static final ForgeConfigSpec SPEC;
 
     public static final ForgeConfigSpec.IntValue RENDER_DISTANCE;
-    public static final ForgeConfigSpec.BooleanValue THROUGH_WALLS;
     public static final ForgeConfigSpec.EnumValue<ColorMode> COLOR_MODE;
 
     public static final ForgeConfigSpec.DoubleValue ALPHA;
@@ -28,10 +27,6 @@ public final class ClientConfig {
         RENDER_DISTANCE = b
                 .comment("Max render distance for highlights in blocks")
                 .defineInRange("renderDistance", 96, 8, 512);
-
-        THROUGH_WALLS = b
-                .comment("Render highlights through walls (disables depth test)")
-                .define("throughWalls", false);
 
         COLOR_MODE = b
                 .comment("Color mode for highlight box colors")

@@ -1,6 +1,5 @@
 package lu.apwbd.storecoords.client.render;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import lu.apwbd.storecoords.StoreCoords;
@@ -27,10 +26,8 @@ public final class BlockHighlighter {
 
     private static boolean enabled = false;
 
-    private static final double MAX_DISTANCE = ClientConfig.RENDER_DISTANCE.get().doubleValue();
-    private static final double MAX_DISTANCE_SQ = MAX_DISTANCE * MAX_DISTANCE;
-
-    private static final boolean THROUGH_WALLS = false;
+    private static float r,g,b;
+    private static ClientConfig.ColorMode lastMode;
 
     private static final Set<BlockPos> cachedSet = new HashSet<>();
     private static final List<BlockPos> cachedList = new ArrayList<>();
@@ -129,24 +126,47 @@ public final class BlockHighlighter {
         MultiBufferSource.BufferSource buffer = mc.renderBuffers().bufferSource();
         VertexConsumer consumer = buffer.getBuffer(RenderType.lines());
 
-        if (THROUGH_WALLS) RenderSystem.disableDepthTest();
-
         poseStack.pushPose();
         poseStack.translate(-camX, -camY, -camZ);
+        float alpha = ClientConfig.ALPHA.get().floatValue();
+        updateColorCache();
 
         BlockPos playerPos = mc.player.blockPosition();
+        double maxDist = ClientConfig.RENDER_DISTANCE.get().doubleValue();
+        double maxDistSq = maxDist * maxDist;
 
         for (BlockPos pos : cachedList) {
-            if (pos.distSqr(playerPos) > MAX_DISTANCE_SQ) continue;
+            if (pos.distSqr(playerPos) > maxDistSq) continue;
 
             AABB box = new AABB(pos).inflate(0.002D);
-            LevelRenderer.renderLineBox(poseStack, consumer, box,
-                    1.0F, 0.85F, 0.0F, 0.8F);
+
+            LevelRenderer.renderLineBox(poseStack, consumer, box, r, g, b, alpha);
         }
 
         poseStack.popPose();
         buffer.endBatch(RenderType.lines());
+    }
 
-        if (THROUGH_WALLS) RenderSystem.enableDepthTest();
+    /**
+     * Determines the appropriate RGB color values based on the current color mode
+     * set in the client configuration. The selected mode corresponds to a specific
+     * preset of RGB values used for visual highlights.
+     *
+     * @return a float array containing three elements representing the RGB color values.
+     *         The values are in the range of 0.0 to 1.0, with the order of the elements
+     *         being red, green, and blue respectively.
+     */
+    private static void updateColorCache() {
+        ClientConfig.ColorMode mode = ClientConfig.COLOR_MODE.get();
+        if (mode == lastMode) return;
+        lastMode = mode;
+
+        switch (mode) {
+            case DEFAULT -> { r=1.0F; g=0.85F; b=0.0F; }
+            case DEUTERANOPIA -> { r=0.0F; g=0.55F; b=1.0F; }
+            case PROTANOPIA -> { r=0.0F; g=0.75F; b=1.0F; }
+            case TRITANOPIA -> { r=1.0F; g=0.4F; b=0.9F; }
+            case HIGH_CONTRAST -> { r=1.0F; g=1.0F; b=1.0F; }
+        }
     }
 }
